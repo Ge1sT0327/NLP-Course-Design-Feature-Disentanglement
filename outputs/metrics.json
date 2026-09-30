@@ -1,0 +1,12 @@
+{
+  "latent_dim": 20,
+  "beta": 4.0,
+  "mig_class": 0.0231,
+  "mig_thickness": 0.2265,
+  "probe_rotation_r2": 0.4836,
+  "probe_thickness_r2": 0.8361,
+  "probe_class_accuracy": 0.8239,
+  "top_dim_rotation": 12,
+  "top_dim_thickness": 2,
+  "top_dim_class": 4
+}

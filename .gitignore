@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 数据集（体积大，不提交；运行时会自动重新下载）
+data/
+
+# 系统文件
+.DS_Store
+Thumbs.db
