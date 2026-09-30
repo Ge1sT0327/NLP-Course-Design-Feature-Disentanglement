@@ -1,13 +1,13 @@
-"""评估与可视化：定量指标 + 生成报告图片。
+"""Evaluation and visualization: quantitative metrics + report figures.
 
-输出到 outputs/：
-  reconstructions.png    原始图像 vs 重构图像
-  latent_traversal.png   逐隐变量维度的遍历（核心图，匹配 PPT 的 Latent Traversal）
-  factor_traversal.png   旋转 / 粗细 / 类别因子对应维度的遍历
-  factor_importance.png  因子探针：各维度对不同因子的重要度热力图
-  latent_space.png       PCA + t-SNE 隐空间可视化（按类别着色）
-  training_curves.png    训练曲线
-  metrics.json           定量指标（MIG、探针 R² / 准确率、各因子最优维度）
+Outputs to outputs/:
+  reconstructions.png    original vs. reconstructed images
+  latent_traversal.png   per-dimension latent traversal (core figure, matching the PPT's Latent Traversal)
+  factor_traversal.png   traversal along the best dimension for rotation / thickness / class
+  factor_importance.png  factor probe importance heatmap (per-dimension, per-factor)
+  latent_space.png       PCA + t-SNE visualization of the latent space (colored by class)
+  training_curves.png    training curves
+  metrics.json           quantitative metrics (MIG, probe R^2 / accuracy, top dim per factor)
 """
 import json
 
@@ -37,7 +37,7 @@ def load_model(device):
 
 @torch.no_grad()
 def encode(model, x, device, chunk=512):
-    """批量编码，返回后验均值 mu，形状 [N, D]。"""
+    """Batch-encode, returning the posterior mean mu of shape [N, D]."""
     mus = []
     for i in range(0, x.size(0), chunk):
         mu, _ = model.encoder(x[i:i + chunk].to(device))
@@ -46,7 +46,7 @@ def encode(model, x, device, chunk=512):
 
 
 def make_grid(imgs, nrow):
-    """[N, 1, H, W] -> 单张大图 [H * rows, W * nrow]。"""
+    """[N, 1, H, W] -> a single large image of shape [H * rows, W * nrow]."""
     N = imgs.shape[0]
     H, W = imgs.shape[2], imgs.shape[3]
     rows = (N + nrow - 1) // nrow
@@ -58,7 +58,7 @@ def make_grid(imgs, nrow):
 
 
 def traverse(model, mu, dim, n_steps=11, z_range=(-3, 3)):
-    """固定其余维度，仅改变第 dim 维，返回生成图像网格与遍历取值。"""
+    """Fix all other dims and vary only `dim`; return the image grid and the traversal values."""
     steps = np.linspace(*z_range, n_steps)
     z = mu.unsqueeze(0).repeat(n_steps, 1)
     z[:, dim] = torch.tensor(steps, dtype=z.dtype, device=z.device)
@@ -74,14 +74,14 @@ def main():
     beta = float(ckpt.get("beta", config.BETA))
 
     # ------------------------------------------------------------------
-    # 1) 干净测试图 + 参考图（选数字 8，笔画多，遍历效果更直观）
+    # 1) Clean test images + reference image (digit 8: more strokes, so traversal is more intuitive)
     # ------------------------------------------------------------------
     clean, clean_labels = load_clean_mnist(config.DATA_DIR, train=False)
     ref_idx = int((clean_labels == 8).nonzero()[0])
     ref = clean[ref_idx:ref_idx + 1]  # [1, 1, 28, 28]
 
     # ------------------------------------------------------------------
-    # 2) 重构对比
+    # 2) Reconstruction comparison
     # ------------------------------------------------------------------
     with torch.no_grad():
         x8 = clean[:8].to(device)
@@ -98,7 +98,7 @@ def main():
     plt.close(fig)
 
     # ------------------------------------------------------------------
-    # 3) 测试集隐变量编码 + 因子采集
+    # 3) Encode the test set into latent codes + collect factors
     # ------------------------------------------------------------------
     _, test_loader = get_dataloaders(config)
     xs, ys, rots, thks = [], [], [], []
@@ -112,13 +112,13 @@ def main():
     z = encode(model, x_all, device)
 
     # ------------------------------------------------------------------
-    # 4) 因子探针 + MIG
+    # 4) Factor probes + MIG
     # ------------------------------------------------------------------
     r2_rot, imp_rot = linear_probe_regression(z, rot)
     r2_thk, imp_thk = linear_probe_regression(z, thk)
     acc_cls, imp_cls = linear_probe_classification(z, y)
     mig_cls, _, _ = mig(z, y)
-    mig_thk, _, _ = mig(z, thk - 1)  # 粗细 1..3 -> 0..2
+    mig_thk, _, _ = mig(z, thk - 1)  # thickness 1..3 -> 0..2
 
     top = {"rotation": int(np.argmax(imp_rot)),
            "thickness": int(np.argmax(imp_thk)),
@@ -126,7 +126,7 @@ def main():
 
     imp = np.stack([imp_rot, imp_thk, imp_cls], 0)          # [3, D]
     imp_norm = imp / (imp.max(1, keepdims=True) + 1e-9)
-    dom = imp_norm.argmax(0)                                # 每维主导因子
+    dom = imp_norm.argmax(0)                                # dominant factor per dimension
 
     metrics = {
         "latent_dim": int(model.latent_dim),
@@ -142,7 +142,7 @@ def main():
     }
 
     # ------------------------------------------------------------------
-    # 5) 隐变量遍历（核心图）
+    # 5) Latent traversal (core figure)
     # ------------------------------------------------------------------
     with torch.no_grad():
         mu_ref, _ = model.encoder(ref.to(device))
@@ -166,7 +166,7 @@ def main():
     plt.close(fig)
 
     # ------------------------------------------------------------------
-    # 6) 因子遍历（旋转 / 粗细 / 类别 各自最优维度）
+    # 6) Factor traversal (the best dim for rotation / thickness / class)
     # ------------------------------------------------------------------
     fig, axes = plt.subplots(3, 1, figsize=(n_steps * 0.5, 3 * 0.6))
     for ax, name in zip(axes, FACTOR_NAMES):
@@ -179,7 +179,7 @@ def main():
     plt.close(fig)
 
     # ------------------------------------------------------------------
-    # 7) 因子重要性热力图
+    # 7) Factor importance heatmap
     # ------------------------------------------------------------------
     fig, ax = plt.subplots(figsize=(max(6, D * 0.4), 3))
     im = ax.imshow(imp_norm, cmap="viridis", aspect="auto", vmin=0, vmax=1)
@@ -195,7 +195,7 @@ def main():
     plt.close(fig)
 
     # ------------------------------------------------------------------
-    # 8) 隐空间可视化（PCA + t-SNE，按类别着色）
+    # 8) Latent space visualization (PCA + t-SNE, colored by class)
     # ------------------------------------------------------------------
     subsample = min(5000, z.shape[0])
     idx = np.random.RandomState(0).choice(z.shape[0], subsample, replace=False)
@@ -216,7 +216,7 @@ def main():
     plt.close(fig)
 
     # ------------------------------------------------------------------
-    # 9) 训练曲线
+    # 9) Training curves
     # ------------------------------------------------------------------
     if config.HISTORY_PATH.exists():
         hist = json.loads(config.HISTORY_PATH.read_text(encoding="utf-8"))
@@ -231,7 +231,7 @@ def main():
         plt.close(fig)
 
     # ------------------------------------------------------------------
-    # 10) 保存指标
+    # 10) Save metrics
     # ------------------------------------------------------------------
     (config.OUTPUT_DIR / "metrics.json").write_text(
         json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")

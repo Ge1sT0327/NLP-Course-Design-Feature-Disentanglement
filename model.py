@@ -1,30 +1,32 @@
-"""β-VAE 模型定义。
+"""beta-VAE model definition.
 
-结构与标准 VAE 完全相同，唯一的区别在于损失函数中 KL 散度项前的系数 β。
-β > 1 时加强对隐空间的正则约束，迫使模型将不同语义因子分配到不同维度，
-从而实现特征解耦（feature disentanglement）。
+The architecture is identical to a standard VAE; the only difference is the
+coefficient beta in front of the KL term in the loss. When beta > 1, the
+regularization on the latent space is strengthened, forcing the model to assign
+different semantic factors to different dimensions and thereby achieving feature
+disentanglement.
 """
 import torch
 import torch.nn as nn
 
 
 def reparameterize(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
-    """重参数化技巧：z = mu + eps * exp(0.5 * logvar)，使采样可反向传播。"""
+    """Reparameterization trick: z = mu + eps * exp(0.5 * logvar), so that sampling is differentiable."""
     std = torch.exp(0.5 * logvar)
     eps = torch.randn_like(std)
     return mu + eps * std
 
 
 class Encoder(nn.Module):
-    """卷积编码器：输入 1×28×28，输出 (mu, logvar)，维度 = latent_dim。
+    """Convolutional encoder: 1x28x28 input -> (mu, logvar) of size latent_dim.
 
-    下采样路径：28 -> 14 -> 7 -> 4。
+    Downsampling path: 28 -> 14 -> 7 -> 4.
     """
 
     def __init__(self, latent_dim: int, hidden_dims=(32, 64, 128)):
         super().__init__()
         layers, in_ch = [], 1
-        # (kernel, stride, padding) 依次对应 28->14, 14->7, 7->4
+        # (kernel, stride, padding) corresponds to 28->14, 14->7, 7->4
         specs = [(4, 2, 1), (4, 2, 1), (3, 2, 1)]
         for h, (k, s, p) in zip(hidden_dims, specs):
             layers += [nn.Conv2d(in_ch, h, k, s, p), nn.BatchNorm2d(h), nn.LeakyReLU(0.2)]
@@ -40,9 +42,9 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    """转置卷积解码器：latent_dim -> 1×28×28。
+    """Transposed-convolutional decoder: latent_dim -> 1x28x28.
 
-    上采样路径：4 -> 7 -> 14 -> 28。
+    Upsampling path: 4 -> 7 -> 14 -> 28.
     """
 
     def __init__(self, latent_dim: int, hidden_dims=(32, 64, 128)):
@@ -52,7 +54,7 @@ class Decoder(nn.Module):
         self.fc = nn.Linear(latent_dim, self.flat_dim)
 
         layers, in_ch = [], hidden_dims[-1]
-        # 4->7, 7->14, 14->28（最后一层输出 1 通道，不含激活/BN）
+        # 4->7, 7->14, 14->28 (the last layer outputs 1 channel, without activation/BN)
         specs = [(3, 2, 1), (4, 2, 1), (4, 2, 1)]
         for i, (h, (k, s, p)) in enumerate(zip(reversed(hidden_dims[:-1]), specs[:-1])):
             layers += [nn.ConvTranspose2d(in_ch, h, k, s, p), nn.BatchNorm2d(h), nn.LeakyReLU(0.2)]
@@ -67,9 +69,9 @@ class Decoder(nn.Module):
 
 
 class BetaVAE(nn.Module):
-    """β-VAE：encoder + decoder。
+    """beta-VAE: encoder + decoder.
 
-    `loss` 返回 (总损失, 重构损失, KL 散度)。
+    `loss` returns (total loss, reconstruction loss, KL divergence).
     """
 
     def __init__(self, latent_dim: int, hidden_dims=(32, 64, 128)):
@@ -84,8 +86,8 @@ class BetaVAE(nn.Module):
         return self.decoder(z), mu, logvar
 
     def loss(self, x, x_recon, mu, logvar, beta=4.0):
-        # 逐样本 BCE 求和后取平均，等价于平均负对数似然（伯努利）
+        # Per-sample BCE summed and averaged, equivalent to the mean negative log-likelihood (Bernoulli)
         recon = nn.functional.binary_cross_entropy(x_recon, x, reduction="sum") / x.size(0)
-        # 每个样本与标准正态先验的 KL 散度，再取平均
+        # KL divergence between each sample and the standard normal prior, averaged
         kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1).mean()
         return recon + beta * kl, recon, kl

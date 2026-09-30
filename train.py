@@ -1,13 +1,13 @@
-"""训练 β-VAE。
+"""Train the beta-VAE.
 
-用法：
-    python train.py                     # 使用 config.py 中的默认参数
+Usage:
+    python train.py                     # use defaults from config.py
     python train.py --beta 8 --epochs 30
-    python train.py --quick             # 1 个 epoch 冒烟测试
+    python train.py --quick             # 1-epoch smoke test
 
-训练结束后会保存：
-    outputs/beta_vae.pt   模型权重（含 beta / latent_dim 元信息）
-    outputs/history.json  每个 epoch 的 loss / recon / kl 曲线数据
+After training, the following are saved:
+    outputs/beta_vae.pt   model weights (with beta / latent_dim metadata)
+    outputs/history.json  per-epoch loss / recon / kl curves
 """
 import argparse
 import json
@@ -37,12 +37,12 @@ def get_device(pref="auto"):
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--beta", type=float, default=None, help="β 系数（默认取 config.BETA）")
+    p.add_argument("--beta", type=float, default=None, help="beta coefficient (defaults to config.BETA)")
     p.add_argument("--epochs", type=int, default=None)
     p.add_argument("--latent-dim", type=int, default=None)
     p.add_argument("--lr", type=float, default=None)
     p.add_argument("--device", default=None)
-    p.add_argument("--quick", action="store_true", help="1 个 epoch 冒烟测试")
+    p.add_argument("--quick", action="store_true", help="1-epoch smoke test")
     return p.parse_args()
 
 

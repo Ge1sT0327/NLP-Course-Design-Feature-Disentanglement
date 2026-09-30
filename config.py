@@ -1,39 +1,41 @@
-"""β-VAE 特征解耦项目 —— 全局配置。
+"""Global configuration for the beta-VAE feature disentanglement project.
 
-所有可调超参数集中在此处，训练与评估脚本通过 `import config` 复用，
-避免魔法数字散落各处。修改后重新运行训练/评估即可生效。
+All tunable hyperparameters are centralized here and shared by the training and
+evaluation scripts via `import config`, avoiding magic numbers scattered around.
+After editing, simply re-run training/evaluation for the changes to take effect.
 """
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# 路径
+# Paths
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / "data"          # MNIST 会自动下载到此处
-OUTPUT_DIR = ROOT / "outputs"     # 权重、图片、指标均输出到此处
+DATA_DIR = ROOT / "data"          # MNIST is downloaded here automatically
+OUTPUT_DIR = ROOT / "outputs"     # Weights, figures and metrics are written here
 MODEL_PATH = OUTPUT_DIR / "beta_vae.pt"
 HISTORY_PATH = OUTPUT_DIR / "history.json"
 
 # ---------------------------------------------------------------------------
-# 数据（FactorMNIST：在 MNIST 上叠加“旋转 + 笔画粗细”两个可控因子）
+# Data (FactorMNIST: two controllable factors "rotation + stroke thickness"
+# are applied on top of MNIST)
 # ---------------------------------------------------------------------------
 BATCH_SIZE = 128
-NUM_WORKERS = 0                   # 0=主进程加载（避免 Windows 多进程加载的兼容性问题）
-ROTATION_RANGE = (-30.0, 30.0)    # 旋转角度范围（度），连续采样
-THICKNESS_LEVELS = 3              # 粗细等级：1=细 / 2=正常 / 3=粗
+NUM_WORKERS = 0                   # 0 = load in the main process (avoids Windows multiprocessing issues)
+ROTATION_RANGE = (-30.0, 30.0)    # Rotation range in degrees (sampled continuously)
+THICKNESS_LEVELS = 3              # Thickness levels: 1=thin / 2=normal / 3=thick
 
 # ---------------------------------------------------------------------------
-# 模型（β-VAE：CNN 编码器 + 对称转置卷积解码器）
+# Model (beta-VAE: CNN encoder + symmetric transposed-conv decoder)
 # ---------------------------------------------------------------------------
-LATENT_DIM = 20                   # 隐变量维度
-HIDDEN_DIMS = [32, 64, 128]       # 编码器卷积通道数（解码器对称）
+LATENT_DIM = 20                   # Latent dimension
+HIDDEN_DIMS = [32, 64, 128]       # Encoder conv channels (decoder is symmetric)
 
 # ---------------------------------------------------------------------------
-# 训练
+# Training
 # ---------------------------------------------------------------------------
 EPOCHS = 40
 LR = 1e-3
-BETA = 4.0                        # β 系数：=1 退化为标准 VAE；>1 增强解耦
+BETA = 4.0                        # Beta coefficient: =1 reduces to standard VAE; >1 strengthens disentanglement
 DEVICE = "auto"                   # auto / cuda / cpu
 SEED = 42
-LOG_INTERVAL = 100                # 每 N 个 batch 打印一次进度
+LOG_INTERVAL = 100                # Print progress every N batches
